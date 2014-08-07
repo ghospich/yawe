@@ -100,6 +100,7 @@ __mkvmerge() {
 lagInFrames=16 # more lagInFrames = more quality
 autoAltRef=1
 width=640
+size=6144
 ac=1 # there is bug in firefox with 1 audio channel on vorbis
 slices=8  # more slices = more quality
 quality=best
@@ -133,6 +134,10 @@ while true ; do
             ;;
         -width)
             width="$2"
+            shift 2
+            ;;
+        -size)
+            size="$2"
             shift 2
             ;;
         -ac)
@@ -196,6 +201,9 @@ while true ; do
             ;;
     esac
 done
+
+source "$(dirname "$(readlink -f "$(command -v "$0")")")/yawe.config"
+
 
 file="$1"
 [[ ! -z "$2" || -z "$ss" || -z "$t" || ! -e "$file" ]] && usage
@@ -295,7 +303,7 @@ if [[ ! -e tmp-audio.webm ]]; then
 fi
 
 audio_size=$(stat -c%s tmp-audio.webm)
-bv="$(bc <<< "scale=3; tmp=(6144 * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
+bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
 
 
 warn "Doing video second pass..."
