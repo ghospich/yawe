@@ -23,9 +23,9 @@ $ $EDITOR ~/.bashrc
 PATH=$PATH:"/path/to/repo"
 ```
 
-Then symlink capture.lua script to your mpv directory
+Then symlink yawe-mpv.lua script to your mpv directory
 ```bash
-ln -s /path/to/repo/capture.lua ~/.mpv/lua/capture.lua
+ln -s /path/to/repo/yawe-mpv.lua ~/.mpv/lua/yawe-mpv.lua
 ```
 
 Configuration

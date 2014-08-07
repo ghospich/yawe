@@ -1,8 +1,3 @@
--- save as ~/.mpv/lua/capture.lua (new mpv versions)
--- or use as mpv --lua=/path/to/capture.lua
--- usage: press «a» at start and at end of fragment
--- will print commands for ffmpeg and mpv
-
 function isabs(path)
     return string.sub(path, 1, 1) == '/' or string.sub(path, 1, 1) == '\\' or string.sub(path, 2, 2) == ':'
 end
@@ -37,7 +32,7 @@ function abspath(path)
     end
 end
 
-TERM = trim(exec('grep TERM "$(dirname "$(readlink ~/.mpv/lua/capture.lua)")/yawe.config" | cut -d = -f 2'))
+TERM = trim(exec('grep TERM "$(dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua)")/yawe.config" | cut -d = -f 2'))
 SHELL = trim(exec('getent passwd $LOGNAME | cut -d: -f7'))
 
 if TERM == "" then
