@@ -7,13 +7,26 @@ Yawe - yet another webm encoder
 Installation
 ============
 
-Enter in repository directory and then.
+Make yawe script available from interactive terminal. Add it to your `.bashrc`, add repo dir in `PATH`, or symlink yawe to /usr/bin
 
-```
+```bash
+cd /path/to/repo
 sudo ln -s $PWD/yawe /usr/bin
-mkdir ~/.mpv/lua_deps
+```
+or
+```bash
+$ $EDITOR ~/.bashrc
+alias yawe="/path/to/repo/yawe"
+```
+or 
+```bash
+$ $EDITOR ~/.bashrc
+PATH=$PATH:"/path/to/repo"
+```
+
+Then symlink capture.lua script to your mpv directory
+```bash
 ln -s $PWD/capture.lua ~/.mpv/lua/capture.lua
-ln -s $PWD/path.lua ~/.mpv/lua_deps/capture.lua
 ```
 
 Usage
