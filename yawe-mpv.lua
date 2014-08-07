@@ -33,10 +33,15 @@ function abspath(path)
 end
 
 TERM = trim(exec('grep TERM "$(dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua)")/yawe.config" | cut -d = -f 2'))
+OUTDIR = trim(exec('grep OUTDIR "$(dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua)")/yawe.config" | cut -d = -f 2'))
 SHELL = trim(exec('getent passwd $LOGNAME | cut -d: -f7'))
 
 if TERM == "" then
     TERM = "xterm"
+end
+
+if OUTDIR == "" then
+    OUTDIR = "~"
 end
 
 if SHELL == "" then
@@ -44,7 +49,7 @@ if SHELL == "" then
 end
 
 function giveToUser(cmd)
-    inside = 'read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
+    inside = 'cd ' ..OUTDIR.. '; read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
     execthis = TERM .. " -e bash -c '" ..inside.. "' & disown"
     os.execute(execthis)
 end
@@ -52,8 +57,8 @@ end
 function getCurrentSubtitle()
     local tracktable = mp.get_property_native("track-list", {})
     for n = 1, #tracktable do
-        if not (tracktable[n].type == "unknown") then
-            if mp.get_property_number("sid") == tracktable[n].id then
+        if tracktable[n].type == "sub" then
+            if tracktable[n].selected then
                 if tracktable[n].external == true then
                     return tracktable[n]["external-filename"]
                 else
