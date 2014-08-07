@@ -6,8 +6,28 @@
 
 capture = {}
 
-package.path = package.path .. ';' .. os.getenv('HOME') .. '/.mpv/lua_deps/?.lua;'
-require "path"
+function isabs(path)
+    return string.sub(path, 1, 1) == '/' or string.sub(path, 1, 1) == '\\' or string.sub(path, 2, 2) == ':'
+end
+
+function join(p1, p2)
+    if is_windows then sep = '\\' else sep = '/' end
+    if isabs(p2) then return p2 end
+    local endc = string.sub(p1, #p1, #p1)
+    if endc ~= '/' and endc ~= '\\' then
+        p1 = p1..sep
+    end
+    return p1..p2
+end
+
+function abspath(path)
+    local currendir = os.getenv("PWD")
+    if not isabs(path) then
+        return join(currendir,path)
+    else
+        return path
+    end
+end
 
 function getCurrentSubtitle()
     local tracktable = mp.get_property_native("track-list", {})
@@ -35,7 +55,7 @@ function capture.handler()
     elseif c.finish == nil then
         c.finish = gp("time-pos")
         local length = c.finish - c.start
-        local fullpath = path.abspath(mp.get_property("path"), os.getenv("PWD"))
+        local fullpath = abspath(mp.get_property("path"))
         local subs = getCurrentSubtitle()
         local subsline = nil
 
@@ -44,7 +64,7 @@ function capture.handler()
         elseif subs == "on" then
             subsline = string.format("-subs on -sid %d ", gpn("sid"))
         else
-            subsline = string.format("-subs '%s' ", path.abspath(subs, os.getenv("PWD")))
+            subsline = string.format("-subs '%s' ", abspath(subs))
         end
 
         io.write(string.format("\n\nyawe -ss %.3f -t %.3f -aid %d %s'%s'\n\n",
