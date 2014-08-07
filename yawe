@@ -7,14 +7,16 @@ LC_NUMERIC=C # WTF, JUST WTF
 
 canonize_name() {
     local name
+    name="$(basename "$1" | rev | cut -d"." -f2- | rev)"
+    tr -c '[:alnum:]' ' ' <<< "$name" | xargs echo -n | tr ' ' '-'  | tr '[:upper:]' '[:lower:]'
+}
+
+create_filename() {
     local lss
     local lt
-    local cname
-    name="$(basename "$1" | rev | cut -d"." -f2- | rev)"
-    lss=$(bc <<< "scale=0; $2 / 1")
-    lt=$(bc <<< "scale=0; $3 / 1")
-    cname="$(tr -c '[:alnum:]' ' ' <<< "$name" | xargs echo -n | tr ' ' '-'  | tr '[:upper:]' '[:lower:]')"
-    echo "$cname-from-${lss}s-length-${lt}s"
+    lss=$(bc <<< "scale=0; $1 / 1")
+    lt=$(bc <<< "scale=0; $2 / 1")
+    echo "from-${lss}s-length-${lt}s.webm"
 }
 
 time_to_seconds() {
@@ -326,10 +328,13 @@ __ffmpeg \
 
 warn "Merging all in 1 file..."
 
-outfilename="$(canonize_name "$file" "$ss" "$t")"
+dirtocreate="$(canonize_name "$(basename "$(dirname "$(readlink -f "$file")")")")"
+outfilename="$(create_filename "$ss" "$t")"
+
+mkdir -p $dirtocreate
 
 __mkvmerge \
     tmp-video.webm \
     tmp-audio.webm \
     -o \
-    "$outfilename".webm
+    "$dirtocreate/$outfilename"
