@@ -42,4 +42,4 @@ Usage
 
 Press `a` key in mpv-player to start segment, and press `a` key again to end segment.
 After that script will show you command, that you should execute.
-Paste this command to noy occupied terminal and it'll start encoding!
+Edit this command and start encoding!
