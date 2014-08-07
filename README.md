@@ -18,7 +18,7 @@ or
 $ $EDITOR ~/.bashrc
 alias yawe="/path/to/repo/yawe"
 ```
-or 
+or
 ```bash
 $ $EDITOR ~/.bashrc
 PATH=$PATH:"/path/to/repo"
@@ -28,6 +28,13 @@ Then symlink capture.lua script to your mpv directory
 ```bash
 ln -s $PWD/capture.lua ~/.mpv/lua/capture.lua
 ```
+
+Configuration
+=============
+
+Create file `yawe.config` in repo dir, and define needed variables.
+They would be sourced by main script.
+
 
 Usage
 =====
