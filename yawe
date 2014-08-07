@@ -1,0 +1,327 @@
+#!/bin/sh
+
+DEBUG=0
+FFMPEG_BIN=~/compiling/ffmpeg_build/usr/bin/ffmpeg
+MKVMERGE_BIN="$(which mkvmerge)"
+LC_NUMERIC=C # WTF, JUST WTF
+
+canonize_name() {
+    local name
+    local lss
+    local lt
+    local cname
+    name="$(basename "$1" | rev | cut -d"." -f2- | rev)"
+    lss=$(bc <<< "scale=0; $2 / 1")
+    lt=$(bc <<< "scale=0; $3 / 1")
+    cname="$(tr -c '[:alnum:]' ' ' <<< "$name" | xargs echo -n | tr ' ' '-'  | tr '[:upper:]' '[:lower:]')"
+    echo "$cname-from-${lss}s-length-${lt}s"
+}
+
+time_to_seconds() {
+    if egrep -q '.*:.*:.*' <<< "$1"; then
+        awk -F":" '{ print $1" * 3600 + "$2" * 60 + "$3 }' <<< "$1" | bc
+    elif egrep -q '.*:.*' <<< "$1"; then
+        awk -F":" '{ print $1" * 60 + "$2 }' <<< "$1" | bc
+    else
+        printf "%.3f" "$1" 2> /dev/null
+    fi
+}
+
+seconds_to_time() {
+    local all
+    local ms
+    local seconds
+    local minutes
+    local hours
+    all=$(printf "%.3f" "$1" 2> /dev/null)
+    ms=$(bc <<< "scale=0; $1 * 1000 % 1000 / 1")
+    seconds=$(bc <<< "scale=0; $1 % 60 / 1")
+    minutes=$(bc <<< "scale=3; tmp=$1 / 60; scale=0; tmp % 60 / 1")
+    hours=$(bc <<< "scale=3; tmp=$1 / 3600; scale=0; tmp / 1")
+    printf "%02d:%02d:%02d.%03d" $hours $minutes $seconds $ms
+}
+
+stderr() {
+    echo "$@" 1>&2
+}
+
+error() {
+    echo -e "\033[01m\033[38;05;1m""$@""\033[m"
+}
+
+warn() {
+    echo -e "\033[01m\033[38;05;3m""$@""\033[m"
+}
+
+info() {
+    echo -e "\033[01m\033[38;05;4m""$@""\033[m"
+}
+
+usage() {
+    cmdname="$(basename "$(readlink -f "$(command -v "$0")")")"
+
+    stderr "Usage: $cmdname -ss <number> -t <number> [OPTIONS] FILE "
+    stderr "Yet another webm encoder."
+    stderr "Webm wrapper for easier webm creating. Use it wisely. And easy."
+    stderr "vp8, vp9, vorbis and opus supported. By default, vp8 and opus enabled. "
+    stderr
+    stderr "Optional options: "
+    stderr "  -lag-in-frames <number> "
+    stderr "  -auto-alt-ref <number> "
+    stderr "  -width <number> "
+    stderr "  -ac <number> "
+    stderr "  -slices <number> "
+    stderr "  -quality <string> "
+    stderr "  -vp8 "
+    stderr "  -vp9 "
+    stderr "  -vorbis "
+    stderr "  -opus "
+    stderr "  -ba <number>k "
+    stderr "  -qa <number> "
+    stderr "  -nofirst "
+    exit 1
+}
+
+__ffmpeg() {
+    info  "ffmpeg" "$@"
+    if [[ $DEBUG -eq 0 ]]; then
+        $FFMPEG_BIN "$@"
+    fi
+}
+__mkvmerge() {
+    info "mkvmerge" "$@"
+    if [[ $DEBUG -eq 0 ]]; then
+        $MKVMERGE_BIN "$@"
+    fi
+}
+
+# predefined stuff
+
+lagInFrames=16 # more lagInFrames = more quality
+autoAltRef=1
+width=640
+ac=1 # there is bug in firefox with 1 audio channel on vorbis
+slices=8  # more slices = more quality
+quality=best
+vcodec=libvpx # vp9 is slow on my machine
+acodec=libopus # opus is pretty cool guy
+ba=48k # audio bitrate (opus only)
+qa=7 # audio quality (vorbis only)
+subs=off
+aid=1
+sid=1
+nofirst=0
+
+
+while true ; do
+    case "$1" in
+        -ss)
+            ss="$2"
+            shift 2
+            ;;
+        -t)
+            t="$2"
+            shift 2
+            ;;
+        -lag-in-frames)
+            lagInFrames="$2"
+            shift 2
+            ;;
+        -auto-alt-ref)
+            autoAltRef="$2"
+            shift 2
+            ;;
+        -width)
+            width="$2"
+            shift 2
+            ;;
+        -ac)
+            ac="$2"
+            shift 2
+            ;;
+        -slices)
+            slices="$2"
+            shift 2
+            ;;
+        -quality)
+            quality="$2"
+            shift 2
+            ;;
+        -vp8)
+            vcodec="libvpx"
+            shift
+            ;;
+        -vp8)
+            vcodec="libvpx-vp9"
+            shift
+            ;;
+        -vorbis)
+            acodec="libvorbis"
+            shift
+            ;;
+        -opus)
+            acodec="libopus"
+            shift
+            ;;
+        -ba)
+            ba="$2"
+            shift 2
+            ;;
+        -qa)
+            qa="$2"
+            shift 2
+            ;;
+        -subs)
+            subs="$2"
+            shift 2
+            ;;
+        -aid)
+            aid="$2"
+            shift 2
+            ;;
+        -sid)
+            sid="$2"
+            shift 2
+            ;;
+        -nofirst)
+            nofirst=1
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+file="$1"
+[[ ! -z "$2" || -z "$ss" || -z "$t" || ! -e "$file" ]] && usage
+ss=$(time_to_seconds "$ss")
+t=$(time_to_seconds "$t")
+
+if [[ "$vcodec" = "libvpx" ]]; then
+    true
+elif [[ "$vcodec" = "libvpx-vp9" ]]; then
+    true
+else
+    error "Unsupported video codec $vcodec."
+    exit 1
+fi
+
+if [[ "$acodec" = "libvorbis" ]]; then
+    aoptions="-q:a $qa"
+elif [[ "$acodec" = "libopus" ]]; then
+    aoptions="-vbr on -application audio -strict -2 -b:a $ba"
+else
+    error "Unsupported audio codec $acodec."
+    exit 1
+fi
+
+
+warn "Preparing file..."
+
+ssend=$(bc <<< "scale=3; $ss + $t")
+parts="$(seconds_to_time $ss)-$(seconds_to_time $ssend)"
+
+ttable="$(__mkvmerge -i "$file" | grep Track | awk -F' ' 'BEGIN{i=1;t}{if($4!=t){i=1;t=$4};sub(/:/,"",$3);$4=substr($4,1,1);print $4""i"\t"$3;i++}')"
+taid=$(grep a$aid <<< "$ttable" | cut -f 2)
+tsid=$(grep s$sid <<< "$ttable" | cut -f 2)
+
+if [[ "$subs" = "off" ]]; then
+    subsarg=""
+
+    __mkvmerge \
+        --disable-track-statistics-tags -B -T \
+        -S \
+        -a $taid \
+        "$file" \
+        --split parts:$parts \
+        -o tmp-preprocess.mkv
+
+elif [[ "$subs" = "on" ]]; then
+    subsarg=",subtitles=tmp-preprocess.mkv"
+
+    __mkvmerge \
+        --disable-track-statistics-tags -B -T \
+        -a $taid \
+        -s $tsid  \
+        "$file" \
+        --split parts:$parts \
+        -o tmp-preprocess.mkv
+else
+    subsarg=",subtitles=tmp-preprocess.mkv"
+
+    __mkvmerge \
+        --disable-track-statistics-tags -B -T \
+        -S \
+        -a $taid \
+        "$file" \
+        "$subs" \
+        --split parts:$parts \
+        -o tmp-preprocess.mkv
+fi
+
+warn "Doing audio encode..."
+
+__ffmpeg \
+    -i tmp-preprocess.mkv \
+    -y \
+    -sn -vn \
+    -c:a "$acodec" \
+    $aoptions \
+    tmp-audio.webm
+
+if [[ $nofirst -eq 0 ]]; then
+
+    warn "Doing video first pass..."
+
+    __ffmpeg \
+        -i tmp-preprocess.mkv \
+        -y \
+        -c:v "$vcodec" \
+        -vf scale="$width":-1"$subsarg" \
+        -pass 1 \
+        -passlogfile tmp-2pass \
+        -f rawvideo -f null \
+        /dev/null
+fi
+
+if [[ ! -e tmp-audio.webm ]]; then
+    error "Error: tmp-audio.webm not found."
+    exit 1
+fi
+
+audio_size=$(stat -c%s tmp-audio.webm)
+bv="$(bc <<< "scale=3; tmp=(6144 * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
+
+
+warn "Doing video second pass..."
+
+__ffmpeg \
+    -i tmp-preprocess.mkv \
+    -y \
+    -c:v "$vcodec" \
+    -sn -an \
+    -vf scale="$width":-1"$subsarg" \
+    -b:v "$bv" \
+    -bufsize "$bv" \
+    -slices "$slices" \
+    -quality "$quality" \
+    -auto-alt-ref "$autoAltRef" \
+    -lag-in-frames "$lagInFrames" \
+    -pass 2 \
+    -passlogfile tmp-2pass \
+    tmp-video.webm
+
+warn "Merging all in 1 file..."
+
+outfilename="$(canonize_name "$file" "$ss" "$t")"
+
+__mkvmerge \
+    tmp-video.webm \
+    tmp-audio.webm \
+    -o \
+    "$outfilename".webm
