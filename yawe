@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 DEBUG=0
 FFMPEG_BIN=~/compiling/ffmpeg_build/usr/bin/ffmpeg
