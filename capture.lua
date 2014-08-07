@@ -3,11 +3,19 @@
 -- usage: press «a» at start and at end of fragment
 -- will print commands for ffmpeg and mpv
 
-
-capture = {}
-
 function isabs(path)
     return string.sub(path, 1, 1) == '/' or string.sub(path, 1, 1) == '\\' or string.sub(path, 2, 2) == ':'
+end
+
+function trim(s)
+  return s:match "^%s*(.-)%s*$"
+end
+
+function exec(cmd)
+    local handle = io.popen(cmd)
+    local result = handle:read("*a")
+    handle:close()
+    return result
 end
 
 function join(p1, p2)
@@ -29,6 +37,23 @@ function abspath(path)
     end
 end
 
+TERM = trim(exec('grep TERM "$(dirname "$(readlink ~/.mpv/lua/capture.lua)")/yawe.config" | cut -d = -f 2'))
+SHELL = trim(exec('getent passwd $LOGNAME | cut -d: -f7'))
+
+if TERM == "" then
+    TERM = "xterm"
+end
+
+if SHELL == "" then
+    SHELL = "bash"
+end
+
+function giveToUser(cmd)
+    inside = 'read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
+    execthis = TERM .. " -e bash -c '" ..inside.. "' & disown"
+    os.execute(execthis)
+end
+
 function getCurrentSubtitle()
     local tracktable = mp.get_property_native("track-list", {})
     for n = 1, #tracktable do
@@ -44,6 +69,8 @@ function getCurrentSubtitle()
     end
     return "off"
 end
+
+capture = {}
 
 function capture.handler()
     local gp = mp.get_property
@@ -62,13 +89,16 @@ function capture.handler()
         if subs == "off" then
             subsline = ""
         elseif subs == "on" then
-            subsline = string.format("-subs on -sid %d ", gpn("sid"))
+            subsline = string.format('-subs on -sid %d ', gpn("sid"))
         else
-            subsline = string.format("-subs '%s' ", abspath(subs))
+            subsline = string.format('-subs \\"%s\\" ', abspath(subs))
         end
 
-        io.write(string.format("\n\nyawe -ss %.3f -t %.3f -aid %d %s'%s'\n\n",
+        giveToUser(string.format('yawe -ss %.3f -t %.3f -aid %d %s\\"%s\\"',
             c.start, length, gpn("aid"), subsline, fullpath))
+
+        print("Go ahead, execute it!")
+
         c.start = nil
         c.finish = nil
     end
