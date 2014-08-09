@@ -329,7 +329,7 @@ __ffmpeg \
 warn "Merging all in 1 file..."
 
 dirtocreate="$(canonize_name "$(basename "$(dirname "$(readlink -f "$file")")")")"
-outfilename="$(create_filename "$ss" "$t")"
+outfilename="$(canonize_name "$file")-$(create_filename "$ss" "$t")"
 
 mkdir -p $dirtocreate
 
