@@ -32,8 +32,9 @@ function abspath(path)
     end
 end
 
-TERM = trim(exec('grep TERM "$(dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua)")/yawe.config" | cut -d = -f 2'))
-OUTDIR = trim(exec('grep OUTDIR "$(dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua)")/yawe.config" | cut -d = -f 2'))
+DIRNAME=trim(exec('dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua || readlink ~/.config/mpv/lua/yawe-mpv.lua)"'))
+TERM = trim(exec('grep TERM "' ..DIRNAME.. '/yawe.config" | cut -d = -f 2'))
+OUTDIR = trim(exec('grep OUTDIR "' ..DIRNAME.. '/yawe.config" | cut -d = -f 2'))
 SHELL = trim(exec('getent passwd $LOGNAME | cut -d: -f7'))
 
 if TERM == "" then
