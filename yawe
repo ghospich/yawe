@@ -80,7 +80,6 @@ usage() {
     stderr "  -opus "
     stderr "  -ba <number>k "
     stderr "  -qa <number> "
-    stderr "  -nofirst "
     exit 1
 }
 
@@ -113,7 +112,6 @@ qa=7 # audio quality (vorbis only)
 subs=off
 aid=1
 sid=1
-nofirst=0
 
 
 while true ; do
@@ -190,10 +188,6 @@ while true ; do
             sid="$2"
             shift 2
             ;;
-        -nofirst)
-            nofirst=1
-            shift
-            ;;
         --)
             shift
             break
@@ -237,67 +231,49 @@ ssend=$(bc <<< "scale=3; $ss + $t")
 parts="$(seconds_to_time $ss)-$(seconds_to_time $ssend)"
 
 ttable="$(__mkvmerge -i "$file" | grep Track | awk -F' ' 'BEGIN{i=1;t}{if($4!=t){i=1;t=$4};sub(/:/,"",$3);$4=substr($4,1,1);print $4""i"\t"$3;i++}')"
+
 taid=$(grep a$aid <<< "$ttable" | cut -f 2)
 tsid=$(grep s$sid <<< "$ttable" | cut -f 2)
+aid0=$((aid - 1))
+sid0=$((sid - 1))
 
 if [[ "$subs" = "off" ]]; then
     subsarg=""
-
-    __mkvmerge \
-        --disable-track-statistics-tags -B -T \
-        -S \
-        -a $taid \
-        "$file" \
-        --split parts:$parts \
-        -o tmp-preprocess.mkv
-
+    info "Nothing to prepare"
 elif [[ "$subs" = "on" ]]; then
-    subsarg=",subtitles=tmp-preprocess.mkv"
-
-    __mkvmerge \
-        --disable-track-statistics-tags -B -T \
-        -a $taid \
-        -s $tsid  \
-        "$file" \
-        --split parts:$parts \
-        -o tmp-preprocess.mkv
+    subsarg=",subtitles=tmp-subs-preprocess.mkv"
+    __ffmpeg -y -ss $ss -t $t -i "$file" -map 0:s:$sid0 tmp-subs-preprocess.mkv
 else
-    subsarg=",subtitles=tmp-preprocess.mkv"
-
-    __mkvmerge \
-        --disable-track-statistics-tags -B -T \
-        -S \
-        -a $taid \
-        "$file" \
-        "$subs" \
-        --split parts:$parts \
-        -o tmp-preprocess.mkv
+    subsarg=",subtitles=tmp-subs-preprocess.mkv"
+    __ffmpeg -y -ss $ss -t $t -i "$subs" tmp-subs-preprocess.mkv
 fi
 
 warn "Doing audio encode..."
 
 __ffmpeg \
-    -i tmp-preprocess.mkv \
+    -ss $ss \
+    -t $t \
+    -i "$file" \
     -y \
     -sn -vn \
+    -map 0:a:$aid0 \
     -c:a "$acodec" \
     $aoptions \
     tmp-audio.webm
 
-if [[ $nofirst -eq 0 ]]; then
+warn "Doing video first pass..."
 
-    warn "Doing video first pass..."
-
-    __ffmpeg \
-        -i tmp-preprocess.mkv \
-        -y \
-        -c:v "$vcodec" \
-        -vf scale="$width":-1"$subsarg" \
-        -pass 1 \
-        -passlogfile tmp-2pass \
-        -f rawvideo -f null \
-        /dev/null
-fi
+__ffmpeg \
+    -ss $ss \
+    -t $t \
+    -i "$file" \
+    -y \
+    -c:v "$vcodec" \
+    -vf scale="$width":-1"$subsarg" \
+    -pass 1 \
+    -passlogfile tmp-2pass \
+    -f rawvideo -f null \
+    /dev/null
 
 if [[ ! -e tmp-audio.webm ]]; then
     error "Error: tmp-audio.webm not found."
@@ -311,7 +287,9 @@ bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0
 warn "Doing video second pass..."
 
 __ffmpeg \
-    -i tmp-preprocess.mkv \
+    -ss $ss \
+    -t $t \
+    -i "$file" \
     -y \
     -c:v "$vcodec" \
     -sn -an \
