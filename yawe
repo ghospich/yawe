@@ -224,9 +224,6 @@ else
     exit 1
 fi
 
-
-warn "Preparing file..."
-
 ssend=$(bc <<< "scale=3; $ss + $t")
 parts="$(seconds_to_time $ss)-$(seconds_to_time $ssend)"
 
@@ -239,13 +236,12 @@ sid0=$((sid - 1))
 
 if [[ "$subs" = "off" ]]; then
     subsarg=""
-    info "Nothing to prepare"
 elif [[ "$subs" = "on" ]]; then
-    subsarg=",subtitles=tmp-subs-preprocess.mkv"
-    __ffmpeg -y -ss $ss -t $t -i "$file" -map 0:s:$sid0 tmp-subs-preprocess.mkv
+    escaped="$(printf '%q' "$file")"
+    subsarg=",setpts=PTS+$ss/TB,subtitles=$escaped,si=$sid0,setpts=PTS-STARTPTS"
 else
-    subsarg=",subtitles=tmp-subs-preprocess.mkv"
-    __ffmpeg -y -ss $ss -t $t -i "$subs" tmp-subs-preprocess.mkv
+    escaped="$(printf '%q' "$subs")"
+    subsarg=",setpts=PTS+$ss/TB,subtitles=$escaped,setpts=PTS-STARTPTS"
 fi
 
 warn "Doing audio encode..."
