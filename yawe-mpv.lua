@@ -48,9 +48,16 @@ if SHELL == "" then
     SHELL = "bash"
 end
 
+SHELL_BASENAME = trim(exec('basename "'..SHELL..'"'))
+
 function giveToUser(cmd)
-    inside = 'cd ' ..OUTDIR.. '; read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
-    execthis = TERM .. " -e bash -c '" ..inside.. "' & disown"
+    if SHELL_BASENAME == "zsh" then
+        RTCMD='cd ' ..OUTDIR.. ';NTDN=1;zle-line-init(){if test "$NTDN" -eq 1;then;LBUFFER="' ..cmd.. '";NTDN=0;fi }'
+        execthis="RTCMD='"..RTCMD.."' "..TERM.." -e zsh & disown"
+    else
+        inside = 'cd ' ..OUTDIR.. '; read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
+        execthis = TERM .. " -e bash -c '" ..inside.. "' & disown"
+    end
     os.execute(execthis)
 end
 
@@ -94,8 +101,15 @@ function capture.handler()
             subsline = string.format('-subs \\"%s\\" ', abspath(subs))
         end
 
-        giveToUser(string.format('yawe -ss %.3f -t %.3f -aid %d %s\\"%s\\"',
-            c.start, length, gpn("aid"), subsline, fullpath))
+        local aid = gpn("aid")
+        if aid == 1 then
+            aidline =  ""
+        else
+            aidline = string.format('-aid %d ', aid)
+        end
+
+        giveToUser(string.format('yawe -ss %.3f -t %.3f %s%s\\"%s\\"',
+            c.start, length, aidline, subsline, fullpath))
 
         print("Go ahead, execute it!")
 
