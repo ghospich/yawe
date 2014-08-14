@@ -200,11 +200,13 @@ done
 
 source "$(dirname "$(readlink -f "$(command -v "$0")")")/yawe.config"
 
-
 file="$1"
+
 [[ ! -z "$2" || -z "$ss" || -z "$t" || ! -e "$file" ]] && usage
+
 ss=$(time_to_seconds "$ss")
 t=$(time_to_seconds "$t")
+se=$(bc <<< "scale=3; $ss + $t")
 
 if [[ "$vcodec" = "libvpx" ]]; then
     true
@@ -223,9 +225,6 @@ else
     error "Unsupported audio codec $acodec."
     exit 1
 fi
-
-ssend=$(bc <<< "scale=3; $ss + $t")
-parts="$(seconds_to_time $ss)-$(seconds_to_time $ssend)"
 
 ttable="$(__mkvmerge -i "$file" | grep Track | awk -F' ' 'BEGIN{i=1;t}{if($4!=t){i=1;t=$4};sub(/:/,"",$3);$4=substr($4,1,1);print $4""i"\t"$3;i++}')"
 
