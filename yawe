@@ -19,6 +19,10 @@ create_filename() {
     echo "from-${lss}s-length-${lt}s.webm"
 }
 
+filename_extension() {
+    basename "$1" | rev | cut -d"." -f1 | rev
+}
+
 time_to_seconds() {
     if egrep -q '.*:.*:.*' <<< "$1"; then
         awk -F":" '{ print $1" * 3600 + "$2" * 60 + "$3 }' <<< "$1" | bc
@@ -233,14 +237,27 @@ tsid=$(grep s$sid <<< "$ttable" | cut -f 2)
 aid0=$((aid - 1))
 sid0=$((sid - 1))
 
+
 if [[ "$subs" = "off" ]]; then
     subsarg=""
 elif [[ "$subs" = "on" ]]; then
+    if [[ "$(filename_extension "$file")" = "ass" ]]; then
+        filterarg="ass"
+    else
+        filterarg="subtitles"
+    fi
+
     escaped="$(printf '%q' "$file")"
-    subsarg=",setpts=PTS+$ss/TB,subtitles=$escaped,si=$sid0,setpts=PTS-STARTPTS"
+    subsarg=",setpts=PTS+$ss/TB,$filterarg=$escaped,si=$sid0,setpts=PTS-STARTPTS"
 else
+    if [[ "$(filename_extension "$subs")" = "ass" ]]; then
+        filterarg="ass"
+    else
+        filterarg="subtitles"
+    fi
+
     escaped="$(printf '%q' "$subs")"
-    subsarg=",setpts=PTS+$ss/TB,subtitles=$escaped,setpts=PTS-STARTPTS"
+    subsarg=",setpts=PTS+$ss/TB,$filterarg=$escaped,setpts=PTS-STARTPTS"
 fi
 
 warn "Doing audio encode..."
