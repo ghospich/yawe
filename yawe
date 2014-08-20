@@ -272,7 +272,7 @@ __ffmpeg \
     -sn -vn \
     -map 0:a:$aid0 \
     -c:a "$acodec" \
-    -ac "$ac"
+    -ac "$ac" \
     $aoptions \
     tmp-audio.webm
 
