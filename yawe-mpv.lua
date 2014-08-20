@@ -32,11 +32,18 @@ function abspath(path)
     end
 end
 
-DIRNAME=trim(exec('dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua || readlink ~/.config/mpv/lua/yawe-mpv.lua)"'))
+function one_empty(argname, number)
+    if number == 1 then
+        return ''
+    else
+        return '-' ..argname.. ' ' ..number.. ' '
+    end
+end
+
+DIRNAME = trim(exec('dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua || readlink ~/.config/mpv/lua/yawe-mpv.lua)"'))
 TERM = trim(exec('grep TERM "' ..DIRNAME.. '/yawe.config" | cut -d = -f 2'))
 OUTDIR = trim(exec('grep OUTDIR "' ..DIRNAME.. '/yawe.config" | cut -d = -f 2'))
 SHELL = trim(exec('getent passwd $LOGNAME | cut -d: -f7'))
-
 if TERM == "" then
     TERM = "xterm"
 end
@@ -51,10 +58,19 @@ end
 
 SHELL_BASENAME = trim(exec('basename "'..SHELL..'"'))
 
+
+ZDOTDIR = nil
+TDIR = nil
+
 function giveToUser(cmd)
     if SHELL_BASENAME == "zsh" then
-        RTCMD='cd ' ..OUTDIR.. ';NTDN=1;zle-line-init(){if test "$NTDN" -eq 1;then;LBUFFER="' ..cmd.. '";NTDN=0;fi }'
-        execthis="RTCMD='"..RTCMD.."' "..TERM.." -e zsh & disown"
+        if (ZDOTDIR == nil) and (TDIR == nil) then
+            ZDOTDIR = trim(exec('zsh -c \'[[ -e "$ZDOTDIR" ]] || ZDOTDIR="$HOME"; echo "$ZDOTDIR"\''))
+            TDIR = trim(exec('zsh -c \'TDIR="$(mktemp -qd --suffix _YAWE_ZSH)"; [[ -e "$ZDOTDIR" ]] || ZDOTDIR="$HOME"; ln -s "$ZDOTDIR/.zshenv" "$TDIR"; ln -s "$ZDOTDIR/.zprofile" "$TDIR"; ln -s "$ZDOTDIR/.zlogin" "$TDIR"; echo "$TDIR"\''))
+        end
+
+        RTCMD='cd ' ..OUTDIR.. ';NTDN=1;zle-line-init(){if test $NTDN -eq 1;then;LBUFFER="' ..cmd.. '";NTDN=0;fi }'
+        execthis = "echo '. " ..ZDOTDIR.. "/.zshrc;" ..RTCMD.. "' > '" ..TDIR.. "/.zshrc'; ZDOTDIR='" ..TDIR.. "' "..TERM.." -e zsh & disown"
     else
         inside = 'cd ' ..OUTDIR.. '; read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
         execthis = TERM .. " -e bash -c '" ..inside.. "' & disown"
@@ -94,19 +110,14 @@ function capture.handler()
         local subs = getCurrentSubtitle()
         local subsline = nil
 
+        local aidline = one_empty("aid", gpn("aid"))
+
         if subs == "off" then
             subsline = ""
         elseif subs == "on" then
-            subsline = string.format('-subs on -sid %d ', gpn("sid"))
+            subsline = string.format('-subs on %s', one_empty("sid", gpn("sid")))
         else
             subsline = string.format('-subs \\"%s\\" ', abspath(subs))
-        end
-
-        local aid = gpn("aid")
-        if aid == 1 then
-            aidline =  ""
-        else
-            aidline = string.format('-aid %d ', aid)
         end
 
         giveToUser(string.format('yawe -ss %.3f -t %.3f %s%s\\"%s\\"',
@@ -119,3 +130,12 @@ function capture.handler()
     end
 end
 mp.add_key_binding("a", "capture", capture.handler)
+
+
+function shutdown_event(event)
+    if (SHELL_BASENAME == "zsh") and (not (TDIR == nil)) then
+        exec('rm -rf "'..TDIR..'"')
+    end
+end
+
+mp.register_event("shutdown", shutdown_event)
