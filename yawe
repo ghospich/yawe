@@ -84,6 +84,8 @@ usage() {
     stderr "  -opus "
     stderr "  -ba <number>k "
     stderr "  -qa <number> "
+    stderr
+    stderr "List is incomplete. See more in source code. "
     exit 1
 }
 
@@ -270,6 +272,7 @@ __ffmpeg \
     -sn -vn \
     -map 0:a:$aid0 \
     -c:a "$acodec" \
+    -ac "$ac"
     $aoptions \
     tmp-audio.webm
 
