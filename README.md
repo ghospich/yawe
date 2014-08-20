@@ -34,7 +34,9 @@ Configuration
 Create file `yawe.config` in repo dir, and define needed variables.
 They would be sourced by main script.
 
-See all available options in `yawe` script. Also you can set option `TERM` - your prefered terminal.
+See all available options in `yawe` script. Also you can set options:
+- `TERM` - your prefered terminal.
+- `OUTDIR` - directory where to store webms.
 
 Usage
 =====
