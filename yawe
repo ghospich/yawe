@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 DEBUG=0
 FFMPEG_BIN="$(which ffmpeg)"
@@ -40,10 +40,10 @@ seconds_to_time() {
     local minutes
     local hours
     all=$(printf "%.3f" "$1" 2> /dev/null)
-    ms=$(bc <<< "scale=0; $1 * 1000 % 1000 / 1")
-    seconds=$(bc <<< "scale=0; $1 % 60 / 1")
-    minutes=$(bc <<< "scale=3; tmp=$1 / 60; scale=0; tmp % 60 / 1")
-    hours=$(bc <<< "scale=3; tmp=$1 / 3600; scale=0; tmp / 1")
+    ms=$(bc <<< "scale=0; $all * 1000 % 1000 / 1")
+    seconds=$(bc <<< "scale=0; $all % 60 / 1")
+    minutes=$(bc <<< "scale=3; tmp=$all / 60; scale=0; tmp % 60 / 1")
+    hours=$(bc <<< "scale=3; tmp=$all / 3600; scale=0; tmp / 1")
     printf "%02d:%02d:%02d.%03d" $hours $minutes $seconds $ms
 }
 
@@ -52,15 +52,15 @@ stderr() {
 }
 
 error() {
-    echo -e "\033[01m\033[38;05;1m""$@""\033[m"
+    echo -e "\033[01m\033[38;05;1m${*}\033[m"
 }
 
 warn() {
-    echo -e "\033[01m\033[38;05;3m""$@""\033[m"
+    echo -e "\033[01m\033[38;05;3m${*}\033[m"
 }
 
 info() {
-    echo -e "\033[01m\033[38;05;4m""$@""\033[m"
+    echo -e "\033[01m\033[38;05;4m${*}\033[m"
 }
 
 usage() {
@@ -263,8 +263,8 @@ fi
 warn "Doing audio encode..."
 
 __ffmpeg \
-    -ss $ss \
-    -t $t \
+    -ss "$ss" \
+    -t "$t" \
     -i "$file" \
     -y \
     -sn -vn \
@@ -276,12 +276,12 @@ __ffmpeg \
 warn "Doing video first pass..."
 
 __ffmpeg \
-    -ss $ss \
-    -t $t \
+    -ss "$ss" \
+    -t "$t" \
     -i "$file" \
     -y \
     -c:v "$vcodec" \
-    -vf scale="$width":-1"$subsarg" \
+    -vf "scale=$width:-1$subsarg" \
     -pass 1 \
     -passlogfile tmp-2pass \
     -f rawvideo -f null \
@@ -299,13 +299,13 @@ bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0
 warn "Doing video second pass..."
 
 __ffmpeg \
-    -ss $ss \
-    -t $t \
+    -ss "$ss" \
+    -t "$t" \
     -i "$file" \
     -y \
     -c:v "$vcodec" \
     -sn -an \
-    -vf scale="$width":-1"$subsarg" \
+    -vf "scale=$width:-1$subsarg" \
     -b:v "$bv" \
     -bufsize "$bv" \
     -slices "$slices" \
@@ -321,7 +321,7 @@ warn "Merging all in 1 file..."
 dirtocreate="$(canonize_name "$(basename "$(dirname "$(readlink -f "$file")")")")"
 outfilename="$(canonize_name "$file")-$(create_filename "$ss" "$t")"
 
-mkdir -p $dirtocreate
+mkdir -p "$dirtocreate"
 
 __mkvmerge \
     tmp-video.webm \
