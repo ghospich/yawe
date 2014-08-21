@@ -284,6 +284,7 @@ __ffmpeg \
     -i "$file" \
     -y \
     -c:v "$vcodec" \
+    -sn -an \
     -vf "scale=$width:-1$subsarg" \
     -pass 1 \
     -passlogfile tmp-2pass \
