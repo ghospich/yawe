@@ -250,7 +250,7 @@ elif [[ "$subs" = "on" ]]; then
     fi
 
     escaped="$(printf '%q' "$file")"
-    subsarg=",setpts=PTS+$ss/TB,$filterarg=$escaped,si=$sid0,setpts=PTS-STARTPTS"
+    subsarg=",setpts=PTS+$ss/TB,$filterarg=$escaped:si=$sid0,setpts=PTS-STARTPTS"
 else
     if [[ "$(filename_extension "$subs")" = "ass" ]]; then
         filterarg="ass"
@@ -261,6 +261,8 @@ else
     escaped="$(printf '%q' "$subs")"
     subsarg=",setpts=PTS+$ss/TB,$filterarg=$escaped,setpts=PTS-STARTPTS"
 fi
+
+TDIR=$(mktemp -d --suffix=_YAWE)
 
 warn "Doing audio encode..."
 
@@ -274,7 +276,7 @@ __ffmpeg \
     -c:a "$acodec" \
     -ac "$ac" \
     $aoptions \
-    tmp-audio.webm
+    $TDIR/tmp-audio.webm
 
 warn "Doing video first pass..."
 
@@ -287,16 +289,16 @@ __ffmpeg \
     -sn -an \
     -vf "scale=$width:-1$subsarg" \
     -pass 1 \
-    -passlogfile tmp-2pass \
+    -passlogfile $TDIR/tmp-2pass \
     -f rawvideo -f null \
     /dev/null
 
-if [[ ! -e tmp-audio.webm ]]; then
-    error "Error: tmp-audio.webm not found."
+if [[ ! -e $TDIR/tmp-audio.webm ]]; then
+    error "Error: $TDIR/tmp-audio.webm not found."
     exit 1
 fi
 
-audio_size=$(stat -c%s tmp-audio.webm)
+audio_size=$(stat -c%s $TDIR/tmp-audio.webm)
 bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
 
 
@@ -317,8 +319,8 @@ __ffmpeg \
     -auto-alt-ref "$autoAltRef" \
     -lag-in-frames "$lagInFrames" \
     -pass 2 \
-    -passlogfile tmp-2pass \
-    tmp-video.webm
+    -passlogfile $TDIR/tmp-2pass \
+    $TDIR/tmp-video.webm
 
 warn "Merging all in 1 file..."
 
@@ -328,7 +330,9 @@ outfilename="$(canonize_name "$file")-$(create_filename "$ss" "$t")"
 mkdir -p "$dirtocreate"
 
 __mkvmerge \
-    tmp-video.webm \
-    tmp-audio.webm \
+    $TDIR/tmp-video.webm \
+    $TDIR/tmp-audio.webm \
     -o \
     "$dirtocreate/$outfilename"
+
+rm -rf $TDIR
