@@ -40,6 +40,24 @@ function one_empty(argname, number)
     end
 end
 
+CACHED_ARGUMENTS = {}
+
+function escape_argument(arg)
+    if CACHED_ARGUMENTS[arg] ~= nil then
+        return CACHED_ARGUMENTS[arg]
+    else
+strtoexec = string.format([=[
+printf %%q "$(cat << EOF_nVGbpoq
+%s
+EOF_nVGbpoq
+)"
+]=], arg)
+        result = trim(exec(strtoexec))
+        CACHED_ARGUMENTS[arg] = result
+        return result
+    end
+end
+
 DIRNAME = trim(exec('dirname "$(readlink ~/.mpv/lua/yawe-mpv.lua || readlink ~/.config/mpv/lua/yawe-mpv.lua)"'))
 TERM = trim(exec('grep TERM "' ..DIRNAME.. '/yawe.config" | cut -d = -f 2'))
 OUTDIR = trim(exec('grep OUTDIR "' ..DIRNAME.. '/yawe.config" | cut -d = -f 2'))
@@ -69,11 +87,29 @@ function giveToUser(cmd)
             TDIR = trim(exec('zsh -c \'TDIR="$(mktemp -qd --suffix _YAWE_ZSH)"; [[ -e "$ZDOTDIR" ]] || ZDOTDIR="$HOME"; ln -s "$ZDOTDIR/.zshenv" "$TDIR"; ln -s "$ZDOTDIR/.zprofile" "$TDIR"; ln -s "$ZDOTDIR/.zlogin" "$TDIR"; echo "$TDIR"\''))
         end
 
-        RTCMD='cd ' ..OUTDIR.. ';NTDN=1;zle-line-init(){if test $NTDN -eq 1;then;LBUFFER="' ..cmd.. '";NTDN=0;fi }'
-        execthis = "echo '. " ..ZDOTDIR.. "/.zshrc;" ..RTCMD.. "' > '" ..TDIR.. "/.zshrc'; ZDOTDIR='" ..TDIR.. "' "..TERM.." -e zsh & disown"
+templatecmd =
+[=[
+tee %s/.zshrc > /dev/null << EOF_1z9aG5E
+. %s/.zshrc;cd %s;NTDN=1;zle-line-init(){if test \$NTDN -eq 1;then;LBUFFER="\$(cat << EOF_RLPzIRz
+%s
+EOF_RLPzIRz)";NTDN=0;fi }
+EOF_1z9aG5E
+ZDOTDIR=%s %s -e zsh & disown
+]=]
+
+        execthis = string.format(templatecmd, TDIR, ZDOTDIR, OUTDIR, cmd, TDIR, TERM)
     else
-        inside = 'cd ' ..OUTDIR.. '; read -e -p "$ " -i "' ..cmd.. '" && eval "$REPLY"; exec ' ..SHELL
-        execthis = TERM .. " -e bash -c '" ..inside.. "' & disown"
+templatecmd =
+[=[
+%s -e bash -c "$(cat << EOF_zNwWe9B
+cd %s;read -e -p "$ " -i "\$(cat << EOF_YZAlFtU
+%s
+EOF_YZAlFtU
+)" && eval "\$REPLY"; exec %s
+EOF_zNwWe9B
+)" & disown
+]=]
+        execthis = string.format(templatecmd, TERM, OUTDIR, cmd, SHELL)
     end
     os.execute(execthis)
 end
@@ -117,11 +153,11 @@ function capture.handler()
         elseif subs == "on" then
             subsline = string.format('-subs on %s', one_empty("sid", gpn("sid")))
         else
-            subsline = string.format('-subs \\"%s\\" ', abspath(subs))
+            subsline = string.format('-subs %s ', escape_argument(abspath(subs)))
         end
 
-        giveToUser(string.format('yawe -ss %.3f -t %.3f %s%s\\"%s\\"',
-            c.start, length, aidline, subsline, fullpath))
+        giveToUser(string.format('yawe -ss %.3f -t %.3f %s%s%s',
+            c.start, length, aidline, subsline, escape_argument(fullpath)))
 
         print("Go ahead, execute it!")
 
