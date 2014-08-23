@@ -47,7 +47,7 @@ function escape_argument(arg)
         return CACHED_ARGUMENTS[arg]
     else
 strtoexec = string.format([=[
-printf %%q "$(cat << EOF_nVGbpoq
+printf %%q "$(cat << 'EOF_nVGbpoq'
 %s
 EOF_nVGbpoq
 )"
@@ -89,8 +89,8 @@ function giveToUser(cmd)
 
 templatecmd =
 [=[
-tee %s/.zshrc > /dev/null << EOF_1z9aG5E
-. %s/.zshrc;cd %s;NTDN=1;zle-line-init(){if test \$NTDN -eq 1;then;LBUFFER="\$(cat << EOF_RLPzIRz
+tee %s/.zshrc > /dev/null << 'EOF_1z9aG5E'
+. %s/.zshrc;cd %s;NTDN=1;zle-line-init(){if test $NTDN -eq 1;then;LBUFFER="$(cat << 'EOF_RLPzIRz'
 %s
 EOF_RLPzIRz)";NTDN=0;fi }
 EOF_1z9aG5E
@@ -101,11 +101,11 @@ ZDOTDIR=%s %s -e zsh & disown
     else
 templatecmd =
 [=[
-%s -e bash -c "$(cat << EOF_zNwWe9B
-cd %s;read -e -p "$ " -i "\$(cat << EOF_YZAlFtU
+%s -e bash -c "$(cat << 'EOF_zNwWe9B'
+cd %s;read -e -p "$ " -i "$(cat << 'EOF_YZAlFtU'
 %s
 EOF_YZAlFtU
-)" && eval "\$REPLY"; exec %s
+)" && eval "$REPLY"; exec %s
 EOF_zNwWe9B
 )" & disown
 ]=]
