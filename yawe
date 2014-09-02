@@ -63,6 +63,19 @@ info() {
     echo -e "\033[01m\033[38;05;4m${*}\033[m"
 }
 
+debug() {
+    if [[ -z "$TDIR" ]]; then
+        error "Can't show debug info due to TDIR not initialized."
+    else
+        DBG_BIN="$1"
+        shift 1
+        ln -sf "$(type -P true)" "$TDIR/$DBG_BIN"
+        echo -e "\033[01m\033[38;05;4m"
+        (PATH="$TDIR:$PATH"; set -x; "$DBG_BIN" "$@")
+        echo -e "\033[m"
+    fi
+}
+
 usage() {
     cmdname="$(basename "$(readlink -f "$(command -v "$0")")")"
 
@@ -90,15 +103,15 @@ usage() {
 }
 
 __ffmpeg() {
-    info  "ffmpeg" "$@"
+    debug "ffmpeg" "$@"
     if [[ $DEBUG -eq 0 ]]; then
-        $FFMPEG_BIN "$@"
+        "$FFMPEG_BIN" "$@"
     fi
 }
 __mkvmerge() {
-    info "mkvmerge" "$@"
+    debug "mkvmerge" "$@"
     if [[ $DEBUG -eq 0 ]]; then
-        $MKVMERGE_BIN "$@"
+        "$MKVMERGE_BIN" "$@"
     fi
 }
 
@@ -115,6 +128,7 @@ vcodec=libvpx # vp9 is slow on my machine
 acodec=libopus # opus is pretty cool guy
 ba=48k # audio bitrate (opus only)
 qa=7 # audio quality (vorbis only)
+fpsarg=""
 subs=off
 aid=1
 sid=1
@@ -182,6 +196,10 @@ while true ; do
             qa="$2"
             shift 2
             ;;
+        -fps)
+            fpsarg=",fps=$2"
+            shift 2
+            ;;
         -subs)
             subs="$2"
             shift 2
@@ -232,7 +250,7 @@ else
     exit 1
 fi
 
-ttable="$(__mkvmerge -i "$file" | grep Track | awk -F' ' 'BEGIN{i=1;t}{if($4!=t){i=1;t=$4};sub(/:/,"",$3);$4=substr($4,1,1);print $4""i"\t"$3;i++}')"
+ttable="$("$MKVMERGE_BIN" -i "$file" | grep Track | awk -F' ' 'BEGIN{i=1;t}{if($4!=t){i=1;t=$4};sub(/:/,"",$3);$4=substr($4,1,1);print $4""i"\t"$3;i++}')"
 
 taid=$(grep a$aid <<< "$ttable" | cut -f 2)
 tsid=$(grep s$sid <<< "$ttable" | cut -f 2)
@@ -287,7 +305,7 @@ __ffmpeg \
     -y \
     -c:v "$vcodec" \
     -sn -an \
-    -vf "scale=$width:-1$subsarg" \
+    -vf "scale=$width:-1$fpsarg$subsarg" \
     -pass 1 \
     -passlogfile $TDIR/tmp-2pass \
     -f rawvideo -f null \
@@ -311,7 +329,7 @@ __ffmpeg \
     -y \
     -c:v "$vcodec" \
     -sn -an \
-    -vf "scale=$width:-1$subsarg" \
+    -vf "scale=$width:-1$fpsarg$subsarg" \
     -b:v "$bv" \
     -bufsize "$bv" \
     -slices "$slices" \
