@@ -16,7 +16,7 @@ create_filename() {
     local lt
     lss=$(bc <<< "scale=0; $1 / 1")
     lt=$(bc <<< "scale=0; $2 / 1")
-    echo "from-${lss}s-length-${lt}s.webm"
+    echo "from-${lss}s-length-${lt}s"
 }
 
 filename_extension() {
@@ -132,7 +132,9 @@ fpsarg=""
 subs=off
 aid=1
 sid=1
+outext="webm"
 
+source "$(dirname "$(readlink -f "$(command -v "$0")")")/yawe.config"
 
 while true ; do
     case "$1" in
@@ -180,6 +182,10 @@ while true ; do
             vcodec="libvpx-vp9"
             shift
             ;;
+        -h264)
+            vcodec="libx264"
+            shift
+            ;;
         -vorbis)
             acodec="libvorbis"
             shift
@@ -222,7 +228,6 @@ while true ; do
     esac
 done
 
-source "$(dirname "$(readlink -f "$(command -v "$0")")")/yawe.config"
 
 file="$1"
 
@@ -236,6 +241,9 @@ if [[ "$vcodec" = "libvpx" ]]; then
     true
 elif [[ "$vcodec" = "libvpx-vp9" ]]; then
     true
+elif [[ "$vcodec" = "libx264" ]]; then
+    acodec="libfdk_aac"
+    outext="mp4"
 else
     error "Unsupported video codec $vcodec."
     exit 1
@@ -245,6 +253,8 @@ if [[ "$acodec" = "libvorbis" ]]; then
     aoptions="-q:a $qa"
 elif [[ "$acodec" = "libopus" ]]; then
     aoptions="-vbr on -application audio -strict -2 -b:a $ba"
+elif [[ "$acodec" = "libfdk_aac" ]]; then
+    aoptions="-b:a $ba"
 else
     error "Unsupported audio codec $acodec."
     exit 1
@@ -294,7 +304,7 @@ __ffmpeg \
     -c:a "$acodec" \
     -ac "$ac" \
     $aoptions \
-    $TDIR/tmp-audio.webm
+    $TDIR/tmp-audio.$outext
 
 warn "Doing video first pass..."
 
@@ -311,12 +321,12 @@ __ffmpeg \
     -f rawvideo -f null \
     /dev/null
 
-if [[ ! -e $TDIR/tmp-audio.webm ]]; then
+if [[ ! -e $TDIR/tmp-audio.$outext ]]; then
     error "Error: $TDIR/tmp-audio.webm not found."
     exit 1
 fi
 
-audio_size=$(stat -c%s $TDIR/tmp-audio.webm)
+audio_size=$(stat -c%s $TDIR/tmp-audio.$outext)
 bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
 
 
@@ -338,18 +348,18 @@ __ffmpeg \
     -lag-in-frames "$lagInFrames" \
     -pass 2 \
     -passlogfile $TDIR/tmp-2pass \
-    $TDIR/tmp-video.webm
+    $TDIR/tmp-video.$outext
 
 warn "Merging all in 1 file..."
 
 dirtocreate="$(canonize_name "$(basename "$(dirname "$(readlink -f "$file")")")")"
-outfilename="$(canonize_name "$file")-$(create_filename "$ss" "$t")"
+outfilename="$(canonize_name "$file")-$(create_filename "$ss" "$t").$outext"
 
 mkdir -p "$dirtocreate"
 
 __mkvmerge \
-    $TDIR/tmp-video.webm \
-    $TDIR/tmp-audio.webm \
+    $TDIR/tmp-video.$outext \
+    $TDIR/tmp-audio.$outext \
     -o \
     "$dirtocreate/$outfilename"
 
