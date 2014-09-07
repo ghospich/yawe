@@ -268,7 +268,7 @@ if [[ "$vcodec" = "libvpx" ]]; then
     voptions+=(-auto-alt-ref "$autoAltRef")
     voptions+=(-lag-in-frames "$lagInFrames")
 
-    if [[ ! -z $crf || ! -z $preset || ! -z $tine || ! -z $dumb ]]; then
+    if [[ ! -z $crf || $preset != "slower" || ! -z $tune || $dumb = 1 ]]; then
         error "This option does't supported with vpx"
         exit 1
     fi
@@ -279,7 +279,7 @@ elif [[ "$vcodec" = "libvpx-vp9" ]]; then
     voptions+=(-auto-alt-ref "$autoAltRef")
     voptions+=(-lag-in-frames "$lagInFrames")
 
-    if [[ ! -z $crf || ! -z $preset || ! -z $tine || ! -z $dumb ]]; then
+    if [[ ! -z $crf || $preset != "slower" || ! -z $tune || $dumb = 1 ]]; then
         error "This option does't supported with vpx"
         exit 1
     fi
