@@ -261,6 +261,7 @@ t=$(time_to_seconds "$t")
 se=$(bc <<< "scale=3; $ss + $t")
 
 voptions=()
+early_voptions=()
 if [[ "$vcodec" = "libvpx" ]]; then
     voptions+=(-slices "$slices")
     voptions+=(-quality "$quality")
@@ -287,9 +288,11 @@ elif [[ "$vcodec" = "libx264" ]]; then
     acodec="libfdk_aac"
     outext="mp4"
     voptions+=(-preset "$preset")
+    early_voptions+=(-preset "$preset")
 
     if [[ ! -z "$tune" ]]; then
         voptions+=(-tune "$tune")
+        early_voptions+=(-tune "$tune")
     fi
 
     voptions+=(-slices "$slices")
@@ -301,8 +304,11 @@ elif [[ "$vcodec" = "libx264" ]]; then
 
     if [[ "$dumb" = 1 ]]; then
         voptions+=(-profile:v baseline)
+        early_voptions+=(-profile:v baseline)
         voptions+=(-level 3.0)
+        early_voptions+=(-level 3.0)
         voptions+=(-pix_fmt yuv420p)
+        early_voptions+=(-pix_fmt yuv420p)
     fi
 
 else
@@ -382,7 +388,7 @@ if [[ $twopass = 1 ]]; then
         -c:v "$vcodec" \
         -sn -an \
         -vf "scale=$width:-1$fpsarg$subsarg" \
-        "${voptions[@]}" \
+        "${early_voptions[@]}" \
         -pass 1 \
         -passlogfile "$TDIR/tmp-2pass" \
         -f rawvideo -f null \
