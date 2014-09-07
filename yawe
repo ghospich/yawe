@@ -374,7 +374,17 @@ __ffmpeg \
     "$TDIR/tmp-audio.$outext"
 
 
+if [[ ! -e "$TDIR/tmp-audio.$outext" ]]; then
+    error "Error: $TDIR/tmp-audio.webm not found."
+    exit 1
+fi
+audio_size=$(stat -c%s $TDIR/tmp-audio.$outext)
+bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
 bvoption=()
+if [[ -z $crf ]]; then
+    bvoption=(-b:v "$bv" -bufsize "$bv")
+fi
+
 
 if [[ $twopass = 1 ]]; then
 
@@ -388,23 +398,12 @@ if [[ $twopass = 1 ]]; then
         -c:v "$vcodec" \
         -sn -an \
         -vf "scale=$width:-1$fpsarg$subsarg" \
+        "${bvoption[@]}" \
         "${early_voptions[@]}" \
         -pass 1 \
         -passlogfile "$TDIR/tmp-2pass" \
         -f rawvideo -f null \
         /dev/null
-
-    if [[ ! -e "$TDIR/tmp-audio.$outext" ]]; then
-        error "Error: $TDIR/tmp-audio.webm not found."
-        exit 1
-    fi
-
-    audio_size=$(stat -c%s $TDIR/tmp-audio.$outext)
-    bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
-
-    if [[ -z $crf ]]; then
-        bvoption=(-b:v "$bv" -bufsize "$bv")
-    fi
 fi
 
 twopassoption=()
