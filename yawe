@@ -128,6 +128,13 @@ vcodec=libvpx # vp9 is slow on my machine
 acodec=libopus # opus is pretty cool guy
 ba=48k # audio bitrate (opus only)
 qa=7 # audio quality (vorbis only)
+
+crf=""
+preset="slower"
+tune=""
+dumb=0
+twopass=1
+
 fpsarg=""
 subs=off
 aid=1
@@ -202,6 +209,22 @@ while true ; do
             qa="$2"
             shift 2
             ;;
+        -crf)
+            crf="$2"
+            shift 2
+            ;;
+        -preset)
+            preset="$2"
+            shift 2
+            ;;
+        -tune)
+            tune="$2"
+            shift 2
+            ;;
+        -dumb)
+            dumb=1
+            shift
+            ;;
         -fps)
             fpsarg=",fps=$2"
             shift 2
@@ -237,24 +260,62 @@ ss=$(time_to_seconds "$ss")
 t=$(time_to_seconds "$t")
 se=$(bc <<< "scale=3; $ss + $t")
 
+voptions=()
 if [[ "$vcodec" = "libvpx" ]]; then
-    true
+    voptions+=(-slices "$slices")
+    voptions+=(-quality "$quality")
+    voptions+=(-auto-alt-ref "$autoAltRef")
+    voptions+=(-lag-in-frames "$lagInFrames")
+
+    if [[ ! -z $crf || ! -z $preset || ! -z $tine || ! -z $dumb ]]; then
+        error "This option does't supported with vpx"
+        exit 1
+    fi
+
 elif [[ "$vcodec" = "libvpx-vp9" ]]; then
-    true
+    voptions+=(-slices "$slices")
+    voptions+=(-quality "$quality")
+    voptions+=(-auto-alt-ref "$autoAltRef")
+    voptions+=(-lag-in-frames "$lagInFrames")
+
+    if [[ ! -z $crf || ! -z $preset || ! -z $tine || ! -z $dumb ]]; then
+        error "This option does't supported with vpx"
+        exit 1
+    fi
+
 elif [[ "$vcodec" = "libx264" ]]; then
     acodec="libfdk_aac"
     outext="mp4"
+    voptions+=(-preset "$preset")
+
+    if [[ ! -z "$tune" ]]; then
+        voptions+=(-tune "$tune")
+    fi
+
+    voptions+=(-slices "$slices")
+
+    if [[ ! -z "$crf" ]]; then
+        voptions+=(-crf "$crf")
+        twopass=0
+    fi
+
+    if [[ "$dumb" = 1 ]]; then
+        voptions+=(-profile:v baseline)
+        voptions+=(-level 3.0)
+        voptions+=(-pix_fmt yuv420p)
+    fi
+
 else
     error "Unsupported video codec $vcodec."
     exit 1
 fi
 
 if [[ "$acodec" = "libvorbis" ]]; then
-    aoptions="-q:a $qa"
+    aoptions=(-q:a "$qa")
 elif [[ "$acodec" = "libopus" ]]; then
-    aoptions="-vbr on -application audio -strict -2 -b:a $ba"
+    aoptions=(-vbr on -application audio -strict -2 -b:a "$ba")
 elif [[ "$acodec" = "libfdk_aac" ]]; then
-    aoptions="-b:a $ba"
+    aoptions=(-b:a "$ba")
 else
     error "Unsupported audio codec $acodec."
     exit 1
@@ -300,34 +361,51 @@ __ffmpeg \
     -i "$file" \
     -y \
     -sn -vn \
-    -map 0:a:$aid0 \
+    -map "0:a:$aid0" \
     -c:a "$acodec" \
     -ac "$ac" \
-    $aoptions \
-    $TDIR/tmp-audio.$outext
+    "${aoptions[@]}" \
+    "$TDIR/tmp-audio.$outext"
 
-warn "Doing video first pass..."
 
-__ffmpeg \
-    -ss "$ss" \
-    -t "$t" \
-    -i "$file" \
-    -y \
-    -c:v "$vcodec" \
-    -sn -an \
-    -vf "scale=$width:-1$fpsarg$subsarg" \
-    -pass 1 \
-    -passlogfile $TDIR/tmp-2pass \
-    -f rawvideo -f null \
-    /dev/null
+bvoption=()
 
-if [[ ! -e $TDIR/tmp-audio.$outext ]]; then
-    error "Error: $TDIR/tmp-audio.webm not found."
-    exit 1
+if [[ $twopass = 1 ]]; then
+
+    warn "Doing video first pass..."
+
+    __ffmpeg \
+        -ss "$ss" \
+        -t "$t" \
+        -i "$file" \
+        -y \
+        -c:v "$vcodec" \
+        -sn -an \
+        -vf "scale=$width:-1$fpsarg$subsarg" \
+        "${voptions[@]}" \
+        -pass 1 \
+        -passlogfile "$TDIR/tmp-2pass" \
+        -f rawvideo -f null \
+        /dev/null
+
+    if [[ ! -e "$TDIR/tmp-audio.$outext" ]]; then
+        error "Error: $TDIR/tmp-audio.webm not found."
+        exit 1
+    fi
+
+    audio_size=$(stat -c%s $TDIR/tmp-audio.$outext)
+    bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
+
+    if [[ -z $crf ]]; then
+        bvoption=(-b:v "$bv" -bufsize "$bv")
+    fi
 fi
 
-audio_size=$(stat -c%s $TDIR/tmp-audio.$outext)
-bv="$(bc <<< "scale=3; tmp=($size * 1024 - $audio_size) / 1024 * 8 / $t; scale=0; tmp / 1")"k
+twopassoption=()
+if [[ $twopass = 1 ]]; then
+    twopassoption+=(-pass 2)
+    twopassoption+=(-passlogfile "$TDIR/tmp-2pass")
+fi
 
 
 warn "Doing video second pass..."
@@ -340,15 +418,10 @@ __ffmpeg \
     -c:v "$vcodec" \
     -sn -an \
     -vf "scale=$width:-1$fpsarg$subsarg" \
-    -b:v "$bv" \
-    -bufsize "$bv" \
-    -slices "$slices" \
-    -quality "$quality" \
-    -auto-alt-ref "$autoAltRef" \
-    -lag-in-frames "$lagInFrames" \
-    -pass 2 \
-    -passlogfile $TDIR/tmp-2pass \
-    $TDIR/tmp-video.$outext
+    "${bvoption[@]}" \
+    "${voptions[@]}" \
+    "${twopassoption[@]}" \
+    "$TDIR/tmp-video.$outext"
 
 warn "Merging all in 1 file..."
 
@@ -358,8 +431,8 @@ outfilename="$(canonize_name "$file")-$(create_filename "$ss" "$t").$outext"
 mkdir -p "$dirtocreate"
 
 __mkvmerge \
-    $TDIR/tmp-video.$outext \
-    $TDIR/tmp-audio.$outext \
+    "$TDIR/tmp-video.$outext" \
+    "$TDIR/tmp-audio.$outext" \
     -o \
     "$dirtocreate/$outfilename"
 
